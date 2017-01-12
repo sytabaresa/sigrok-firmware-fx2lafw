@@ -165,6 +165,9 @@ static void start_sampling(void)
 {
 	int i;
 
+	/* Set analog mode */
+	IOA |= 0x80;
+
 	clear_fifo();
 
 	for (i = 0; i < 1000; i++);
@@ -389,7 +392,8 @@ static void init(void)
 	EP8CFG = 0;
 
 	/* Set analog mode */
-	PA7 = 1;
+	IOA |= 0x80;
+
 
 	/* In idle mode tristate all outputs. */
 	GPIFIDLECTL = 0x00; /* Don't enable CTL0-5 outputs. */
