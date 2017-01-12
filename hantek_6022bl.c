@@ -67,7 +67,9 @@ void suspend_isr(void) __interrupt SUSPEND_ISR
 
 void timer2_isr(void) __interrupt TF2_ISR
 {
-	PA7 = !PA7;
+	/* Toggle the 1kHz pin, only accurate up to ca 8MHz */
+	IOC = IOC^0x04;
+
 	if (ledcounter) {
 		if (--ledcounter == 0) {
 			/* Clear LED. */
