@@ -67,7 +67,9 @@ void suspend_isr(void) __interrupt SUSPEND_ISR
 
 void timer2_isr(void) __interrupt TF2_ISR
 {
-	PA7 = !PA7;
+	/* Toggle the 1kHz pin, only accurate up to ca 8MHz */
+	IOC = IOC^0x04;
+
 	if (ledcounter) {
 		if (--ledcounter == 0) {
 			/* Clear LED. */
@@ -80,8 +82,8 @@ void timer2_isr(void) __interrupt TF2_ISR
 
 /*
  * This sets three bits for each channel, one channel at a time.
- * For channel 0 we want to set bits 5, 6 & 7
- * For channel 1 we want to set bits 2, 3 & 4
+ * For channel 0 we want to set bits 1, 2 & 3
+ * For channel 1 we want to set bits 4, 5 & 6
  *
  * We convert the input values that are strange due to original
  * firmware code into the value of the three bits as follows:
@@ -105,23 +107,24 @@ static BOOL set_voltage(BYTE channel, BYTE val)
 
 	switch (val) {
 	case 1:
-		bits = 0x24 * 2;
+		bits = 0x02;
 		break;
 	case 2:
-		bits = 0x24 * 1;
+		bits = 0x01;
 		break;
 	case 5:
-		bits = 0x24 * 0;
+		bits = 0x00;
 		break;
 	case 10:
-		bits = 0x24 * 3;
+		bits = 0x03;
 		break;
 	default:
 		return FALSE;
 	}
 
-	mask = (channel) ? 0xe0 : 0x1c;
-	IOC = (IOC & ~mask) | (bits & mask);
+	bits = bits << (channel ? 1 : 4);
+	mask = (channel) ? 0x70 : 0x0e;
+	IOA = (IOA & ~mask) | (bits & mask);
 
 	return TRUE;
 }
@@ -161,6 +164,9 @@ static void stop_sampling(void)
 static void start_sampling(void)
 {
 	int i;
+
+	/* Set analog mode */
+	IOA |= 0x80;
 
 	clear_fifo();
 
@@ -218,16 +224,16 @@ static const struct samplerate_info {
 } samplerates[] = {
 	{ 48, 0x80,   0, 3, 0, 0x00, 0xea },
 	{ 30, 0x80,   0, 3, 0, 0x00, 0xaa },
-	{ 24,    1,   0, 2, 1, 0x40, 0xca },
-	{ 16,    1,   1, 2, 0, 0x40, 0xca },
-	{ 12,    2,   1, 2, 0, 0x40, 0xca },
-	{  8,    3,   2, 2, 0, 0x40, 0xca },
-	{  4,    6,   5, 2, 0, 0x40, 0xca },
-	{  2,   12,  11, 2, 0, 0x40, 0xca },
-	{  1,   24,  23, 2, 0, 0x40, 0xca },
-	{ 50,   48,  47, 2, 0, 0x40, 0xca },
-	{ 20,  120, 119, 2, 0, 0x40, 0xca },
-	{ 10,  240, 239, 2, 0, 0x40, 0xca },
+	{ 24,    1,   0, 2, 1, 0x10, 0xca },
+	{ 16,    1,   1, 2, 0, 0x10, 0xca },
+	{ 12,    2,   1, 2, 0, 0x10, 0xca },
+	{  8,    3,   2, 2, 0, 0x10, 0xca },
+	{  4,    6,   5, 2, 0, 0x10, 0xca },
+	{  2,   12,  11, 2, 0, 0x10, 0xca },
+	{  1,   24,  23, 2, 0, 0x10, 0xca },
+	{ 50,   48,  47, 2, 0, 0x10, 0xca },
+	{ 20,  120, 119, 2, 0, 0x10, 0xca },
+	{ 10,  240, 239, 2, 0, 0x10, 0xca },
 };
 
 static BOOL set_samplerate(BYTE rate)
@@ -282,8 +288,8 @@ static BOOL set_samplerate(BYTE rate)
 
 	/* OUTPUT 0-7 */
 	EXTAUTODAT2 = samplerates[i].out0;
-	EXTAUTODAT2 = 0x44; /* OE0=1, CTL0=1 */
-	EXTAUTODAT2 = 0x44; /* OE0=1, CTL0=1 */
+	EXTAUTODAT2 = 0x11; /* OE0=1, CTL0=1 */
+	EXTAUTODAT2 = 0x11; /* OE0=1, CTL0=1 */
 	EXTAUTODAT2 = 0;
 	EXTAUTODAT2 = 0;
 	EXTAUTODAT2 = 0;
@@ -385,6 +391,10 @@ static void init(void)
 	EP4CFG = 0;
 	EP8CFG = 0;
 
+	/* Set analog mode */
+	IOA |= 0x80;
+
+
 	/* In idle mode tristate all outputs. */
 	GPIFIDLECTL = 0x00; /* Don't enable CTL0-5 outputs. */
 	GPIFCTLCFG = 0x80; /* TRICTL=1. CTL0-2: CMOS outputs, tri-statable. */
@@ -431,7 +441,7 @@ static void main(void)
 	PORTCCFG = 0;
 	PORTACFG = 0;
 	OEC = 0xff;
-	OEA = 0x80;
+	OEA = 0xff;
 
 	while (TRUE) {
 		if (dosud) {
